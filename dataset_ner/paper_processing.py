@@ -16,6 +16,7 @@ import argparse
 import jsonlines
 #NLP
 import spacy
+import re
 from bs4 import BeautifulSoup
 nlp = spacy.load("en_core_web_sm")
 
@@ -65,7 +66,8 @@ class Paper():
         if not self.bs.select("abstract"):
             self.abstract = None
         else:
-            self.abstract = self.bs.abstract.contents[1].string
+            self.abstract = self.bs.abstract.contents[1].string.lower()
+
         return self.abstract
         
     def get_title(self, min_words = int):
@@ -96,7 +98,10 @@ class Paper():
         else:
             querry = self.bs.find_all("contrib", {"contrib-type":"author"})
             for i in range(len(querry)):
-                self.authors.append(querry[i].get_text())
+                author = querry[i].get_text().replace('\n', ' ').replace('  ', ' ').strip()
+                #removing digits
+                author = re.sub('[0-9]', '', author)
+                self.authors.append(author)
         return self.authors
         
     def get_affiliation(self):
@@ -105,7 +110,7 @@ class Paper():
         else:
             institutions = self.bs.find_all("institution")
             for i in range(len(institutions)):
-                self.affiliations.append(institutions[i].get_text())
+                self.affiliations.append(institutions[i].get_text().replace('(', '').replace(')', ''))
         return self.affiliations
 
             
@@ -136,6 +141,7 @@ def wrapper_paper(path):
         'date':'',
         'authors':str(getattr(pp,'authors')),
         'affiliations':str(getattr(pp, 'affiliations')),
+        'abstract':str(getattr(pp, 'abstract'))
         #TODO: update it with narrower candidates
         #'paragraphs_candidates':str([el for el in getattr(pp, 'paragraphs_list') if 'data' in el]),
         #'dataset_names':getattr(pm,'dataset_name'),
