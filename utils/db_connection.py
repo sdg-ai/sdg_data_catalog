@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS papers (
     doi text,
     date text,
     authors text,
-    affiliations text
+    affiliations text,
+    abstract text
 );
 '''
 
@@ -64,8 +65,8 @@ def add_paper(conn, paper_dict):
     :param paper:
     """
     #(paper_id, title, paper_path, doi, date, authors, affiliations, paragraphs_candidates)
-    sql = ''' INSERT INTO papers(paper_id, title, paper_path, doi, date, authors, affiliations)
-              VALUES(?,?,?,?,?,?,?) '''
+    sql = ''' INSERT INTO papers(paper_id, title, paper_path, doi, date, authors, affiliations, abstract)
+              VALUES(?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, tuple(paper_dict.values()))
     conn.commit()

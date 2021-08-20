@@ -9,8 +9,8 @@ from utils.db_connection import *
 import glob 
 import random
 import numpy as np
-import matplotlib.pyplot as plt 
-import seaborn as sns 
+#import matplotlib.pyplot as plt 
+#import seaborn as sns 
 import pandas as pd
 import argparse
 import jsonlines
@@ -66,7 +66,7 @@ class Paper():
         if not self.bs.select("abstract"):
             self.abstract = None
         else:
-            self.abstract = self.bs.abstract.contents[1].string.lower()
+            self.abstract = self.bs.abstract.contents[1].string
 
         return self.abstract
         
@@ -129,10 +129,11 @@ def wrapper_paper(path):
     #for i in getattr(pp,'paragraphs_list'):
 #
     #    pm.match(i.lower())
-    rd = random.Random()
-    rd.seed(getattr(pp,'path'))
+    #rd = random.Random()
+    #rd.seed(str(getattr(pp,'path')))
     d_paper = {
-        'paper_id':str(uuid.UUID(int=rd.getrandbits(128))),
+        #'paper_id':str(uuid.UUID(int=rd.getrandbits(128))),
+        'paper_id':str(uuid.uuid4()),
         'title': getattr(pp,'title'),
         'paper_path':getattr(pp,'path'),
         #TODO
@@ -153,9 +154,10 @@ def wrapper_paper(path):
     add_paper(conn, d_paper)
     for i, el in enumerate(getattr(pp, 'paragraphs_list')):
         if 'data' in el:
-            rdp = random.Random()
-            rdp.seed(getattr(pp,'path')+str(i))
-            add_paragraph(conn, {'paragraph_id':str(uuid.UUID(int=rdp.getrandbits(128))), 'paper_id':d_paper['paper_id'], 'body_text':el})
+            #rdp = random.Random()
+            #rdp.seed(getattr(pp,'path')+str(i))
+            #add_paragraph(conn, {'paragraph_id':str(uuid.UUID(int=rdp.getrandbits(128))), 'paper_id':d_paper['paper_id'], 'body_text':el})
+            add_paragraph(conn, {'paragraph_id':str(uuid.uuid4()), 'paper_id':d_paper['paper_id'], 'body_text':el})
 
 if __name__ == '__main__':
     '''
