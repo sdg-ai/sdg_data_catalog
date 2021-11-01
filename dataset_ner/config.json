@@ -1,0 +1,23 @@
+{
+    "WORD2VEC":{
+        "word_embedding_path":"../../glove/glove.6B.300d.pickle",
+        "embedding_dim":300,
+        "max_seq_len":256,
+        "tags":"B-DATASET_NAME I-DATASET_NAME L-DATASET_NAME U-DATASET_NAME O [PAD] [CLS] [SEP] X"
+    },
+    "BiLSTMCRF":{
+        "batch_size":32,
+        "device":"cuda",
+        "embedding_dim":300,
+        "hidden_dim":100,
+        "learning_rate":0.05,
+        "model_path_prefix":"../../model/word2vec_bilstm_crf_ltp",
+        "num_rnn_layers":2,
+        "num_epoch":4
+},
+    "EvalF1":{
+        "average":"micro",
+        "digits":2,
+        "return_report":"False"
+    }
+}

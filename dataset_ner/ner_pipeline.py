@@ -147,13 +147,6 @@ class NER_AND_AL_Pipeline():
         ind_keep = [el for el in range(1133) if el not in non_aligned]
         self.training_text_vec = list(pd.Series(self.training_text_vec)[ind_keep])
         self.training_tags_vec = list(pd.Series(self.training_tags_vec)[ind_keep])
-        
-        #np.save('texts.npy', list(pd.Series(self.x_train)[ind_keep]))
-        #np.save('tags.npy', list(pd.Series(self.x_train)[ind_keep]))
-
-        #np.save('text_vec.npy', np.array(self.training_text_vec))
-        #np.save('tag_vec.npy', np.array(self.training_tags_vec))
-        #pd.DataFrame(pd.Series(self.training_text_vec), pd.Series(self.training_tags_vec), columns=['text_vec', 'tag_vec']).to_excel('data_vectorized.xlsx')
 
         print('# non aligned ', len(non_aligned))
         
@@ -163,11 +156,7 @@ class NER_AND_AL_Pipeline():
                                              (len(self.preprocessor.vocab), embedding_dim))
 
         for word in awe.keys():
-            self.word_embeds[self.preprocessor.word_to_idx[word]] = awe[word]
-                                                                                                     
-        '''
-        NEED TO REWRITE THE DATA GATHERING HERE
-        '''
+            self.word_embeds[self.preprocessor.word_to_idx[word]] = awe[word]                                                                                             
 
         #self.eval_ys = vec_to_tags(self.tags, self.eval_ys, max_seq_len)
         #self.logger.info("Step01 Finish: word embedding.\n")
@@ -196,8 +185,8 @@ class NER_AND_AL_Pipeline():
         #DataLoader is used here to batch the data, shuffle the data and load the data in parallel using multiprocessing workers
         train_dl = DataLoader(TensorDataset(train_xs, train_ys), batch_size, shuffle=True)
 
-        if self.model_to_train == 'lstm':
-            self.model = BiLSTMCRF(vocab_size=len(self.preprocessor.vocab),
+        #if self.model_to_train == 'lstm':
+        self.model = BiLSTMCRF(vocab_size=len(self.preprocessor.vocab),
                         tag_to_ix=self.preprocessor.tag_to_idx,
                         embedding_dim=embedding_dim,
                         hidden_dim=hidden_dim,
@@ -212,8 +201,8 @@ class NER_AND_AL_Pipeline():
         #self.model.to(device)
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=0)
         info = ""
-        if self.model_to_train == 'lstm':
-            for epoch in range(num_epoch):
+        #if self.model_to_train == 'lstm':
+        for epoch in range(num_epoch):
                 self.model.train()
                 bar = tqdm(train_dl)
                 for bi, (xb, yb) in enumerate(bar):
