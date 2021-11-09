@@ -22,5 +22,12 @@ python dataset_ner/prodigy_processing.py -n 'papers_metadata_and_cadidates.jsonl
 **-t**: number of threads to use<br/>
 **-n**: Name of the generated file, that will serve as input to Prodigy<br/>
 
+## Current performances on the NER task:
 
+This result are based on a 5k large corpus of papers.
 
+| Model  | Recall | Precision  | F1 score |
+| ---------- | ----------- | ----------- | ----------- |
+| Glove 400k + BiLSTM CRF  |  0.78  | 0.6  | 0.68  |
+| Glove 1.9M + BiLSTM CRF  | **0.88**  | 0.74  | 0.80 |
+| BERT base uncased | 0.75  | **0.91**  | **0.82** |
