@@ -11,17 +11,28 @@ except:
     from dataset_ner.prodigy_processing import *
 import argparse
 import functools
+import datetime
 
 def wrapper(training_data_path='db/annotations/annotations.csv', 
             model_to_train='bert', scores=True, active_learning=False, active_learning_strategy='LTP',
-            batch_fraction=.05, unannotated_texts_path='db/annotations/annotations.csv', generated_file_path='db/annotations/AL_generated_data_to_annotate.jsonl'):
+            batch_fraction=.05, unannotated_texts_path='db/annotations/annotations.csv', 
+            generated_file_path='db/annotations/AL_generated_data_to_annotate.jsonl', report_name='dataset_ner/performances/report_1.json'):
     T = NER_AND_AL_Pipeline(training_data_path=training_data_path, model_to_train=model_to_train)
     T.word_embedding()
     T.build_bilstm_crf()
-    entity_f1_score,sentence_ac_score = T.predict_eval()
+    precision, recall, f_score, support, sentence_ac_score = T.predict_eval(ret_all_metrics=True)
     if scores:
         #save the scores
-        print('TODO')
+        d_scores = {
+            'date':str(datetime.datetime.today().strftime('%Y-%m-%d')),
+            'model_details': str(getattr(T, 'model')),
+            'precision':precision,
+            'recall':recall,
+            'f_score':f_score,
+            'sentence_ac_score':sentence_ac_score
+        }
+        with open(report_name, 'w') as fp:
+            json.dump(d_scores, fp)
     else: pass
     if active_learning:
         dat = pd.DataFrame(extract_all_paragraphs(database=unannotated_texts_path), columns=['paragraph_id', 'body_text', 'paper_id'])
@@ -48,7 +59,8 @@ if __name__ == '__main__':
     prs.add_argument('-bf', '--batch_fraction', help='the fraction of unnanotated data that we want to suggest for annotation', type=float, default=.05)
     prs.add_argument('-ut', '--unnanotated_text_path', help='Path to access the unnanotated data', type=str, default="db/sdg_data_catalog_test.db")
     prs.add_argument('-na', '--new_annotations', help='path of the newly created file with recommended data to annotate', type=str, default='db/annotations/AL_generated_data_to_annotate.jsonl')
+    prs.add_argument('-rn', '--report_name', help='name of the json file saving the performance report', type=str, default='dataset_ner/performances/report_1.json')
     prs = prs.parse_args()
     wrapper(training_data_path=prs.path_annotations, model_to_train=prs.model,
     scores=prs.scores, active_learning=prs.active_learning, active_learning_strategy=prs.active_learning_strategy,
-    batch_fraction=prs.batch_fraction, unannotated_texts_path=prs.unnanotated_text_path)
+    batch_fraction=prs.batch_fraction, unannotated_texts_path=prs.unnanotated_text_path, report_name=prs.report_name)

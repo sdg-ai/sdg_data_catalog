@@ -1,5 +1,5 @@
-#import sys
-#sys.path.append("..")
+import sys
+sys.path.append("..")
 
 import torch
 import pickle
@@ -16,6 +16,7 @@ from evaluation import EvaluationIndex
 from active_learning import *
 from model import *
 from metrics import SampleMetrics
+from utils.utils import *
 
 import torch
 import json
@@ -39,100 +40,6 @@ class BERTClass(torch.nn.Module):
         output = self.l3(output_2)
         return output
 
-def vec_to_tags(tags, vecs, max_seq_len=256):
-    """
-    change vector to tags
-    """
-    idx_to_tag = {key: idx for key, idx in enumerate(tags)}
-    print(idx_to_tag)
-    tags = []
-
-    for vec in vecs:
-        tag = [idx_to_tag.get(idx) for idx in vec[:max_seq_len]]
-        tags.append(tag)
-
-    return tags 
-
-def sentences_to_vec(sentence, d_word_id, max_len, max_seq_len=256):
-    sent = nlp(sentence)
-    vec = [d_word_id.get(str(word), max_len) for word in sent[:max_seq_len]]
-    return vec + [0] * (max_seq_len - len(vec))
-
-def tags_to_vec(tags, d_tags_id, max_seq_len=256):
-    vec = [d_tags_id.get(tag) for tag in tags[:max_seq_len]]
-    return vec + [0] * (max_seq_len - len(vec))
-
-def sentences_to_vec_nopad(sentence, d_word_id, max_len, max_seq_len=256):
-    sent = nlp(sentence)
-    vec = [d_word_id.get(str(word), max_len) for word in sent[:max_seq_len]]
-    return vec
-
-def tags_to_vec_nopad(tags, d_tags_id, max_seq_len=256):
-    vec = [d_tags_id.get(tag) for tag in tags[:max_seq_len]]
-    return vec
-
-class DataPool(object):
-    """
-    DataPool is used to store all datas, including annotated and unannotated data.
-    DataPool also provide a unified data acquisition interface.
-    """
-
-    def __init__(self, annotated_texts: list, annotated_labels: list,
-                 unannotated_texts: list, unannotated_labels: list) -> None:
-        """
-        initialize DataPool object
-        :param annotated_texts: annotated samples' text, must equal to annotated_labels
-        :param annotated_labels: annotated samples' label, must equal to annotated_texts
-        :param unannotated_texts: unannotated samples' text, must equal to unannotated_labels if unannotated labels is not None
-        :param unannotated_labels: unannotated samples' label
-        """
-
-        self.annotated_texts = np.array(annotated_texts)
-        self.annotated_labels = np.array(annotated_labels)
-        self.unannotated_texts = np.array(unannotated_texts)
-        self.unannotated_labels = np.array(unannotated_labels)
-        self.new_annotated_texts = np.array([])
-        self.new_annotated_labels = np.array([])
-
-    def update(self, mode: str, annotated_texts=None, annotated_labels=None,
-               unannotated_texts=None, unannotated_labels=None, selected_idx=None):
-            '''
-            This function update the values of annotated_texts and unannotated_texts
-            selected_idx: the ids that we just annotated
-            '''
-            if selected_idx is None:
-                if len(unannotated_labels) != len(selected_idx):
-                    raise ValueError(f"In {mode} mode, if unannotated_labels is not None, they must"
-                                     f" have the same length as the selected_idx")
-                #updating the annotated labels
-                if self.annotated_labels.shape[-1] != 0:
-                    self.annotated_labels = np.concatenate((self.annotated_labels, np.array(unannotated_labels)))
-                else:
-                    self.annotated_labels = np.array(unannotated_labels)
-                #updating the new annotated labels
-                if self.annotated_labels.shape[-1] != 0:
-                    self.new_annotated_labels = np.concatenate((self.new_annotated_labels, np.array(unannotated_labels)))
-                else:
-                    self.new_annotated_labels = np.array(unannotated_labels)
-            else:
-                if self.annotated_labels.shape[-1] != 0:
-                    self.annotated_labels = np.concatenate(
-                        (self.annotated_labels, self.unannotated_labels[selected_idx]))
-                else:
-                    self.annotated_labels = self.unannotated_labels[selected_idx]
-            if self.annotated_labels.shape[-1] != 0:
-                self.annotated_texts = np.concatenate((self.annotated_texts, self.unannotated_texts[selected_idx]))
-            else:
-                self.annotated_texts = self.unannotated_texts[selected_idx]
-            # delete samples form unannotated database
-            self.unannotated_texts = np.delete(self.unannotated_texts, selected_idx, axis=0)
-            self.unannotated_labels = np.delete(self.unannotated_labels, selected_idx, axis=0)
-
-    def get_total_number(self) -> int:
-        """
-        Get total number of samples.
-        """
-        return len(self.annotated_texts) + len(self.unannotated_texts)
 
 class NER_AND_AL_Pipeline():
     """
@@ -258,7 +165,7 @@ class NER_AND_AL_Pipeline():
 
         return
 
-    def predict_eval(self):
+    def predict_eval(self, ret_all_metrics=False):
         """
         This function is using the model to make predictions on the training and test set 
         and report evaluation metrics calculated on the test set.
@@ -319,7 +226,11 @@ class NER_AND_AL_Pipeline():
 
         logging.info("Step03 Finish: Predicting and evaluation.\n")
 
-        return entity_f1_score,sentence_ac_score
+        if ret_all_metrics:
+            precision, recall, f_score, support  = eval.detailed_metrics(self.y_val_, self.tag_seq_, average=entity_average)
+            return precision, recall, f_score, support, sentence_ac_score
+        else:
+            return entity_f1_score,sentence_ac_score
 
 
     def eval(self, unannotated_texts, unannotated_labels):
