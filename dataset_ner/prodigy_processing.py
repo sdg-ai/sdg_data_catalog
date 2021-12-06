@@ -15,21 +15,7 @@ generated_file_path = 'prodigy_serialized_file.jsonl'
 #name of the sqlite db created
 database = r"db/sdg_data_catalog_test.db"
 
-def prodigy_process():
-    '''
-    Function used to store all the selected paragraphs in a single jsonl file that can be used by Prodigy
-    Args:
-        file_path: path of the json with all paragraphs stored
-    return the list of paragraph_ids
-    '''
-    def extract_all_paragraphs():
-        conn = create_connection(database)
-        cur = conn.cursor()
-        cur.execute('''select paragraph_id, body_text, paper_id from paragraph''')
-        res = cur.fetchall()
-        return res
-        
-    def process_paragraph(prg_dat=str):
+def process_paragraph(prg_dat=str, generated_file_path=generated_file_path):
         '''
         Function used to add one paragraph to the jsonl file 
         Args:
@@ -40,7 +26,21 @@ def prodigy_process():
         d['meta'] = {'paragraph_id':prg_dat[0], 'paper_id':prg_dat[2]}
         assert srsly.is_json_serializable([d]) is True
         srsly.write_jsonl(generated_file_path, [d], append=True, append_new_line=False)
-        
+
+def extract_all_paragraphs(database=database):
+        conn = create_connection(database)
+        cur = conn.cursor()
+        cur.execute('''select paragraph_id, body_text, paper_id from paragraph''')
+        res = cur.fetchall()
+        return res
+
+def prodigy_process():
+    '''
+    Function used to store all the selected paragraphs in a single jsonl file that can be used by Prodigy
+    Args:
+        file_path: path of the json with all paragraphs stored
+    return the list of paragraph_ids
+    ''' 
     #can parallelize with multiprocessing for more efficiency
     list_paragraphs = extract_all_paragraphs()
     list(map(process_paragraph, list_paragraphs))

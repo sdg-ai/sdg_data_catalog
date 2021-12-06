@@ -1,9 +1,9 @@
-import os
 import sys
 sys.path.append("..")
 
 import torch
 import pickle
+import logging
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -11,14 +11,12 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 
-# AL-NER-DEMO Modules
-#from utils.utils import vec_to_tags
-#from pipeline import Pipeline
 from data_transformation import Preprocessor
 from evaluation import EvaluationIndex
 from active_learning import *
 from model import *
 from metrics import SampleMetrics
+from utils.utils import *
 
 import torch
 import json
@@ -42,37 +40,6 @@ class BERTClass(torch.nn.Module):
         output = self.l3(output_2)
         return output
 
-def vec_to_tags(tags, vecs, max_seq_len=256):
-    """
-    change vector to tags
-    """
-    idx_to_tag = {key: idx for key, idx in enumerate(tags)}
-    print(idx_to_tag)
-    tags = []
-
-    for vec in vecs:
-        tag = [idx_to_tag.get(idx) for idx in vec[:max_seq_len]]
-        tags.append(tag)
-
-    return tags 
-
-def sentences_to_vec(sentence, d_word_id, max_len, max_seq_len=256):
-    sent = nlp(sentence)
-    vec = [d_word_id.get(str(word), max_len) for word in sent[:max_seq_len]]
-    return vec + [0] * (max_seq_len - len(vec))
-
-def tags_to_vec(tags, d_tags_id, max_seq_len=256):
-    vec = [d_tags_id.get(tag) for tag in tags[:max_seq_len]]
-    return vec + [0] * (max_seq_len - len(vec))
-
-def sentences_to_vec_nopad(sentence, d_word_id, max_len, max_seq_len=256):
-    sent = nlp(sentence)
-    vec = [d_word_id.get(str(word), max_len) for word in sent[:max_seq_len]]
-    return vec
-
-def tags_to_vec_nopad(tags, d_tags_id, max_seq_len=256):
-    vec = [d_tags_id.get(tag) for tag in tags[:max_seq_len]]
-    return vec
 
 class NER_AND_AL_Pipeline():
     """
@@ -83,17 +50,6 @@ class NER_AND_AL_Pipeline():
     def __init__(self, training_data_path='db/annotations/combined_annotation_launchlab_ai4g.csv', config_file='config.json', model_to_train='lstm'):
         self.preprocessor = Preprocessor(vocab=[], tags=[])
         self.model_to_train = model_to_train
-        #self.datapool = None
-        self.strategy = {
-            "RANDOM": RandomStrategy,
-            "LC": LeastConfidenceStrategy,
-            "NLC": NormalizedLeastConfidenceStrategy,
-            "LTP": LeastTokenProbabilityStrategy,
-            "MTP": MinimumTokenProbabilityStrategy,
-            "MTE": MaximumTokenEntropyStrategy,
-            "LONG": LongStrategy,
-            "TE": TokenEntropyStrategy,
-        }
         self.training_data_path = training_data_path
         self.training_dtf = pd.read_csv(self.training_data_path)
         #self.training_dtf = self.training_dtf[self.training_dtf['are_same_lenght']==True]
@@ -104,19 +60,12 @@ class NER_AND_AL_Pipeline():
         #super(NER_AND_AL_Pipeline, self).__init__()
         #if model_to_train=='bert':
         #    from transformers import BertForTokenClassification, BertTokenizer, BertConfig, BertModel
-        np.save('texts_val.npy', list(pd.Series(self.x_val)))
-        np.save('tags_val.npy', list(pd.Series(self.y_val)))
-
 
     def word_embedding(self):
         """
         Embedding with word2vec.
         """
-        #self.logger.info("Step01 Begin: word embedding.\n")
-
-        np.save('texts.npy', list(pd.Series(self.x_train)))
-        np.save('tags.npy', list(pd.Series(self.y_train)))
-        print('saved')
+        logging.info("Step1 Begin: word embedding.\n")
         word_embedding_path = self.config['WORD2VEC']['word_embedding_path']
         embedding_dim = self.config["WORD2VEC"]["embedding_dim"]
         max_seq_len = self.config["WORD2VEC"]["max_seq_len"]
@@ -159,15 +108,14 @@ class NER_AND_AL_Pipeline():
             self.word_embeds[self.preprocessor.word_to_idx[word]] = awe[word]                                                                                             
 
         #self.eval_ys = vec_to_tags(self.tags, self.eval_ys, max_seq_len)
-        #self.logger.info("Step01 Finish: word embedding.\n")
+        logging.info("Step1 Finish: word embedding.\n")
         return
 
     def build_bilstm_crf(self):
         """
-        Step 02
         Build BiLSTM+CRF Model.
         """
-        #self.logger.info("Step02 Begin: build bilstm crf.\n")
+        logging.info("Step2 Begin: build bilstm crf.\n")
 
         batch_size = self.config["BiLSTMCRF"]["batch_size"]
         device = self.config["BiLSTMCRF"]["device"]
@@ -178,7 +126,6 @@ class NER_AND_AL_Pipeline():
         num_rnn_layers = self.config["BiLSTMCRF"]["num_rnn_layers"]
         num_epoch = self.config["BiLSTMCRF"]["num_epoch"]
 
-        #TODO: CHANGE THE DEFINITION OF THE TRAINING SET AND THE TEST SET
         train_xs, train_ys = self.training_text_vec, self.training_tags_vec
         train_xs = torch.Tensor(train_xs)
         train_ys = torch.Tensor(train_ys)
@@ -212,21 +159,22 @@ class NER_AND_AL_Pipeline():
                     optimizer.step()
                     bar.set_description(f"{epoch + 1:2d}/{num_epoch} loss: {loss:5.2f}")
                 info += f"{epoch + 1:2d}/{num_epoch} loss: {loss:5.2f}\n"
-        #self.logger.info(f"{info}")
+        logging.info(f"{info}")
         torch.save(self.model.state_dict(), model_path_prefix + ".pth")
-        #self.logger.info("Step02 Finish: bilstm crf.\n")
+        logging.info("Step2 Finish: bilstm crf.\n")
 
         return
 
-    def predict_eval(self):
+    def predict_eval(self, ret_all_metrics=False):
         """
-        Step 03
-        Use training model to predict and evaluate
+        This function is using the model to make predictions on the training and test set 
+        and report evaluation metrics calculated on the test set.
+        Predict and evaluate:
         entity-level-F1
         sentence-level-accuracy
         """
         ###TODO add recall and precision
-        #self.logger.info("Step03 Begin: Predicting and evaluation.\n")
+        logging.info("Step3 Begin: Predicting and evaluation.\n")
         #device = self.config.param("BiLSTMCRF", "device", type="string")
         max_seq_len = self.config["WORD2VEC"]["max_seq_len"]
         entity_digits = self.config["EvalF1"]["digits"]
@@ -271,30 +219,35 @@ class NER_AND_AL_Pipeline():
             entity_f1_score = eval.entity_level_f1(self.y_val_, self.tag_seq_, entity_digits,
                                                    entity_return_report, entity_average)
 
-        #self.logger.info(f"Entity-level F1: {entity_f1_score}")
+        logging.info(f"Entity-level F1: {entity_f1_score}")
 
         sentence_ac_score = eval.sentence_level_accuracy(self.y_val_, self.tag_seq_)
         print(f"Sentence-level Accuracy: {sentence_ac_score}")
 
-        #self.logger.info("Step03 Finish: Predicting and evaluation.\n")
+        logging.info("Step03 Finish: Predicting and evaluation.\n")
 
-        return entity_f1_score,sentence_ac_score
+        if ret_all_metrics:
+            precision, recall, f_score, support  = eval.detailed_metrics(self.y_val_, self.tag_seq_, average=entity_average)
+            return precision, recall, f_score, support, sentence_ac_score
+        else:
+            return entity_f1_score,sentence_ac_score
 
 
-    def eval(self):
+    def eval(self, unannotated_texts, unannotated_labels):
         """
-        Step 03
-        Use training model to predict and evaluate
-        entity-level-F1
-        sentence-level-accuracy
+        This function is using the model to make predictions on unnanotated data, for
+        which we don't have labels already. These unnanotated data can be fed to the 
+        active learning part of the pipeline further down in order to add more annotations
+        and improve the model performances
         """
-        self.logger.info("Step03 Begin: Predicting and evaluation.\n")
-        device = self.config.param("BiLSTMCRF", "device", type="string")
-        max_seq_len = self.config.param("WORD2VEC", "max_seq_len", type="int")
+        logging.info("Step03 Begin: Predicting and evaluation.\n")
+        #device = self.config.param("BiLSTMCRF", "device", type="string")
+        max_seq_len = self.config["WORD2VEC"]["max_seq_len"]
 
-        unannotated_texts, unannotated_labels = self.datapool.get_unannotated_data()
-        unannotated_texts = torch.from_numpy(unannotated_texts).int()
-        unannotated_labels = torch.from_numpy(unannotated_labels).int()
+        self.unannotated_texts_vec = list(unannotated_texts.apply(lambda x: sentences_to_vec(x, d_word_id=self.d_word_id, max_len=self.max_len)).values)
+
+        unannotated_texts = torch.from_numpy(np.array(self.unannotated_texts_vec)).int()
+        unannotated_labels = torch.from_numpy(np.array(unannotated_labels)).int()
         eval_dl = DataLoader(TensorDataset(unannotated_texts, unannotated_labels), 256, shuffle=False)
         self.model.eval()
         scores, tag_seq_l, probs, tag_seq_str = [], [], [], []
@@ -311,37 +264,58 @@ class NER_AND_AL_Pipeline():
         probs = np.array(probs)
         return scores, tag_seq_l, probs, tag_seq_str
 
-    def active_learning(self):
-        self.logger.info("Begin active_learning.")
-        strategy = self.config.param("ActiveStrategy", "strategy", type="string")
+    def active_learning(self, unannotated_texts, unannotated_labels, 
+                        strategy='LTP', query_batch_fraction=.05, ret_idx=False):
+        '''
+        Pool-based active learning framework (from: A New Active Learning Strategy for CRF-Based Named Entity Recognition, M. Liu & al.)
+        Require: 
+            Labeled data set L,
+            unlabeled data pool U,
+            selection strategy φ(·),
+            query batch size B
+        while not reach stop condition do
+            // Train the model using labeled set L
+            train(L);
+                for b = 1 to B do
+                //select the most informative instance
+                x∗ = arg maxx∈U φ(x)
+                L = L union < x∗, label(x∗) >
+                U = U − x∗
+                end for
+            end while
+        '''
+        '''
+        Args:
+        - strategy: which function is used to estimate the next most informative data point to annotate?
+        - query_batch_fraction: the proportion of mosst informative unnanotated data that are selected for next annotation
+        '''
+        #other strategies to consider: https://modal-python.readthedocs.io/en/latest/
+        logging.info("Begin active_learning.")
+        strategy_mapping = {
+            "RANDOM": RandomStrategy,
+            "LC": LeastConfidenceStrategy,
+            "NLC": NormalizedLeastConfidenceStrategy,
+            "LTP": LeastTokenProbabilityStrategy,
+            "MTP": MinimumTokenProbabilityStrategy,
+            "MTE": MaximumTokenEntropyStrategy,
+            "LONG": LongStrategy,
+            "TE": TokenEntropyStrategy,
+        }
         strategy_name = strategy.lower()
-        stop_echo = self.config.param("ActiveStrategy", "stop_echo", type="int")
-        query_batch_fraction = self.config.param("ActiveStrategy", "query_batch_fraction", type="float")
-        max_seq_len = self.config.param("WORD2VEC", "max_seq_len", type="int")
-        choice_number = int(self.datapool.get_total_number() * query_batch_fraction)
-        strategy = self.strategy[strategy]
-        for i in range(0, stop_echo):
-            self.logger.info(
-                f"[No. {i + 1}/{stop_echo}] ActiveStrategy:{strategy}, BatchFraction: {query_batch_fraction}\n")
-            self.build_bilstm_crf()
-            entity_f1_score,sentence_ac_score = self.predict_eval()
-            scores, tag_seq, probs, tag_seq_str = self.eval()
-            _, unannotated_labels = self.datapool.get_unannotated_data()
-            idx = strategy.select_idx(choices_number=choice_number, probs=probs, scores=scores, best_path=tag_seq)
-            selected_samples = unannotated_labels[idx]
-            selected_samples = vec_to_tags(self.tags, selected_samples.tolist(), max_seq_len)
-            tag_seq_str = [tag_seq_str[id] for id in idx]
-            # update datapool
-            self.datapool.update(mode="internal_exchange_u2a", selected_idx=idx)
-            _reading_cost = SampleMetrics._reading_cost(selected_samples)
-            self.logger.info(f"Reading Cost is {_reading_cost}")
-            _annotation_cost = SampleMetrics._annotation_cost(selected_samples, tag_seq_str)
-            self.logger.info(f"Annotation Cost is {_annotation_cost}")
-            _wrong_select = SampleMetrics._percentage_wrong_selection(selected_samples, tag_seq_str)
-            self.logger.info(f"Wrong Selected percentage: {_wrong_select}")
-            self.logger.info(f"{strategy_name},{i},{entity_f1_score},{sentence_ac_score},{_reading_cost},{_annotation_cost},{_wrong_select}")
-            del self.model
-            torch.cuda.empty_cache()
+        max_seq_len = self.config["WORD2VEC"]["max_seq_len"]
+        choice_number = int(len(unannotated_texts) * query_batch_fraction)
+        strategy = strategy_mapping[strategy]
+
+        #start an active learning iteration
+        #self.build_bilstm_crf()
+        #entity_f1_score,sentence_ac_score = self.predict_eval() 
+        scores, tag_seq, probs, tag_seq_str = self.eval(unannotated_texts=unannotated_texts, unannotated_labels=unannotated_labels)
+        idx = strategy.select_idx(choices_number=choice_number, probs=probs, scores=scores, best_path=tag_seq)
+        tag_seq_str = [tag_seq_str[id] for id in idx]
+        del self.model
+        torch.cuda.empty_cache()
+        if ret_idx:
+            return idx
 
     @property
     def tasks(self):
