@@ -7,8 +7,14 @@ from abc import ABCMeta, abstractmethod
 class ActiveLearningStrategy(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         probs: [B, L, C]
         scores: [B]
@@ -19,8 +25,14 @@ class ActiveLearningStrategy(metaclass=ABCMeta):
 
 class RandomStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Random Select Strategy
         This method you can directly pass candidate_number: int
@@ -32,17 +44,31 @@ class RandomStrategy(ActiveLearningStrategy):
             candidate_number = scores.shape[0]
         return np.random.choice(np.arange(candidate_number), size=choices_number)
 
+
 class LongStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         length = np.array([-len(path) for path in best_path])
         return np.argpartition(length, choices_number)[:choices_number]
 
+
 class LeastConfidenceStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Least Confidence Strategy
         """
@@ -53,8 +79,14 @@ class LeastConfidenceStrategy(ActiveLearningStrategy):
 
 class NormalizedLeastConfidenceStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Normalized Least Confidence Strategy
         """
@@ -67,8 +99,14 @@ class NormalizedLeastConfidenceStrategy(ActiveLearningStrategy):
 
 class LeastTokenProbabilityStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Least Token Probability Strategy
         """
@@ -83,18 +121,24 @@ class LeastTokenProbabilityStrategy(ActiveLearningStrategy):
 
 class MinimumTokenProbabilityStrategy(ActiveLearningStrategy):
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Minimum Token Probability Strategy
         """
         assert probs.shape[0] == scores.shape[0] == len(best_path)
         mtp_socres = []
         for prob, path in zip(probs, best_path):
-            prob = prob[:len(path)]
+            prob = prob[: len(path)]
             prob -= np.max(prob)
             prob = np.exp(prob) / np.sum(np.exp(prob))
-            mtp_socres.append(np.min(np.max(prob[:len(path)], axis=1)))
+            mtp_socres.append(np.min(np.max(prob[: len(path)], axis=1)))
         idx = np.argpartition(mtp_socres, choices_number)[:choices_number]
         return idx
 
@@ -105,15 +149,21 @@ class MaximumTokenEntropyStrategy(ActiveLearningStrategy):
     """
 
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Maximum Token Entropy
         """
         assert probs.shape[0] == scores.shape[0] == len(best_path)
         mte_socres = []
         for prob, path in zip(probs, best_path):
-            prob = prob[:len(path)]
+            prob = prob[: len(path)]
             prob -= np.max(prob)
             prob_softmax = np.exp(prob) / np.sum(np.exp(prob))
             mte_socres.append(np.sum(prob_softmax * np.log(prob_softmax)))
@@ -127,15 +177,21 @@ class TokenEntropyStrategy(ActiveLearningStrategy):
     """
 
     @classmethod
-    def select_idx(cls, choices_number: int, probs: np.ndarray = None, scores: np.ndarray = None,
-                   best_path: List[List[int]] = None, **kwargs) -> np.ndarray:
+    def select_idx(
+        cls,
+        choices_number: int,
+        probs: np.ndarray = None,
+        scores: np.ndarray = None,
+        best_path: List[List[int]] = None,
+        **kwargs
+    ) -> np.ndarray:
         """
         Maximum Token Entropy
         """
         assert probs.shape[0] == scores.shape[0] == len(best_path)
         mte_socres = []
         for prob, path in zip(probs, best_path):
-            prob = prob[:len(path)]
+            prob = prob[: len(path)]
             prob -= np.max(prob)
             prob_softmax = np.exp(prob) / np.sum(np.exp(prob))
             mte_socres.append(np.mean(prob_softmax * np.log(prob_softmax)))
