@@ -66,9 +66,11 @@ def build_classifier_model():
 if __name__=='__main__':
 
     """
-    Serialization of few shot learning takes 2 inputs:
-    - text_path : default path to access the directory that contains abstract of the annotations
-    - labels_path: default path to access the directory that contains SDG Goals annotations
+    Serialization of few shot learning takes 4 inputs:
+    - text_path_training : default path to access the directory that contains abstract of the annotations
+    - labels_path_training: default path to access the directory that contains SDG Goals annotations
+    - text_path_test : default path to access the directory that contains abstract of the annotations
+    - labels_path_test: default path to access the directory that contains SDG Goals annotations
     """
 
     # ___________________________________ Data Parser ___________________________________
